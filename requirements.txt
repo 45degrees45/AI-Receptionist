@@ -1,6 +1,6 @@
+openai==1.13.3
+httpx==0.24.1
 flask==3.0.2
 twilio==8.13.0
-openai==1.13.3
 python-dotenv==1.0.1
-requests==2.31.0
 gunicorn==21.2.0
