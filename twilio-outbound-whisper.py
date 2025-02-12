@@ -4,11 +4,22 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 from openai import OpenAI
 import os
 from dotenv import load_dotenv
+import requests
 
 load_dotenv()
 
 app = Flask(__name__)
-openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+# Approach 1: Initialize with minimal configuration
+try:
+    openai_client = OpenAI(
+        api_key=os.getenv('OPENAI_API_KEY'),
+        default_headers={"Content-Type": "application/json"}
+    )
+except TypeError:
+    # Approach 2: Fallback to simpler initialization if the first fails
+    openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
 twilio_client = Client(os.getenv('TWILIO_ACCOUNT_SID'), os.getenv('TWILIO_AUTH_TOKEN'))
 
 class OutboundCallHandler:
@@ -22,8 +33,7 @@ class OutboundCallHandler:
             call = twilio_client.calls.create(
                 to=to_number,
                 from_=os.getenv('TWILIO_PHONE_NUMBER'),
-                #url=f"https://{request.headers['Host']}/outbound-voice"
-                url="https://d502-116-68-102-4.ngrok-free.app/outbound-voice"
+                url=f"https://{request.headers.get('Host', '')}/outbound-voice"
             )
             return call.sid
         except Exception as e:
@@ -31,29 +41,37 @@ class OutboundCallHandler:
             return None
 
     def transcribe_audio(self, audio_url):
-        # Download audio from Twilio URL
-        audio_response = requests.get(audio_url)
-        with open("temp_audio.wav", "wb") as f:
-            f.write(audio_response.content)
-        
-        # Transcribe with Whisper
-        with open("temp_audio.wav", "rb") as audio_file:
-            transcript = openai_client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file
-            )
-        os.remove("temp_audio.wav")
-        return transcript.text
+        try:
+            # Download audio from Twilio URL
+            audio_response = requests.get(audio_url)
+            with open("temp_audio.wav", "wb") as f:
+                f.write(audio_response.content)
+            
+            # Transcribe with Whisper
+            with open("temp_audio.wav", "rb") as audio_file:
+                transcript = openai_client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+            os.remove("temp_audio.wav")
+            return transcript.text
+        except Exception as e:
+            print(f"Error transcribing audio: {e}")
+            return ""
 
     def handle_response(self, user_input):
-        self.conversation_history.append({"role": "user", "content": user_input})
-        response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=self.conversation_history
-        )
-        ai_response = response.choices[0].message.content
-        self.conversation_history.append({"role": "assistant", "content": ai_response})
-        return ai_response
+        try:
+            self.conversation_history.append({"role": "user", "content": user_input})
+            response = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=self.conversation_history
+            )
+            ai_response = response.choices[0].message.content
+            self.conversation_history.append({"role": "assistant", "content": ai_response})
+            return ai_response
+        except Exception as e:
+            print(f"Error handling response: {e}")
+            return "I apologize, but I'm having trouble processing your request at the moment."
 
 call_handler = OutboundCallHandler()
 
@@ -69,20 +87,24 @@ def outbound_voice():
 def handle_response():
     response = VoiceResponse()
     
-    if 'RecordingUrl' in request.values:
-        user_speech = call_handler.transcribe_audio(request.values['RecordingUrl'])
-    else:
-        user_speech = request.values.get('SpeechResult', '')
-    
-    if user_speech:
-        ai_response = call_handler.handle_response(user_speech)
-        response.say(ai_response)
-        gather = Gather(input='speech', action='/handle-response', timeout=3)
-        response.append(gather)
-    else:
-        response.say("I didn't catch that. Could you please repeat?")
-        gather = Gather(input='speech', action='/handle-response', timeout=3)
-        response.append(gather)
+    try:
+        if 'RecordingUrl' in request.values:
+            user_speech = call_handler.transcribe_audio(request.values['RecordingUrl'])
+        else:
+            user_speech = request.values.get('SpeechResult', '')
+        
+        if user_speech:
+            ai_response = call_handler.handle_response(user_speech)
+            response.say(ai_response)
+            gather = Gather(input='speech', action='/handle-response', timeout=3)
+            response.append(gather)
+        else:
+            response.say("I didn't catch that. Could you please repeat?")
+            gather = Gather(input='speech', action='/handle-response', timeout=3)
+            response.append(gather)
+    except Exception as e:
+        print(f"Error in handle_response: {e}")
+        response.say("I apologize, but I'm having trouble processing your request at the moment.")
     
     return str(response)
 
