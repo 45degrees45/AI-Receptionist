@@ -10,15 +10,11 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Approach 1: Initialize with minimal configuration
-try:
-    openai_client = OpenAI(
-        api_key=os.getenv('OPENAI_API_KEY'),
-        default_headers={"Content-Type": "application/json"}
-    )
-except TypeError:
-    # Approach 2: Fallback to simpler initialization if the first fails
-    openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+# Initialize OpenAI client with base configuration
+openai_client = OpenAI(
+    api_key=os.getenv('OPENAI_API_KEY'),
+    base_url="https://api.openai.com/v1"
+)
 
 twilio_client = Client(os.getenv('TWILIO_ACCOUNT_SID'), os.getenv('TWILIO_AUTH_TOKEN'))
 
