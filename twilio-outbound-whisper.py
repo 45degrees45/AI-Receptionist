@@ -115,5 +115,10 @@ def initiate_call():
         return {"status": "success", "call_sid": call_sid}
     return {"error": "Failed to make call"}, 500
 
+@app.route("/healthz", methods=['GET'])
+def health_check():
+    """Health check endpoint for Render."""
+    return {"status": "healthy"}, 200
+
 if __name__ == "__main__":
     app.run(debug=True)
