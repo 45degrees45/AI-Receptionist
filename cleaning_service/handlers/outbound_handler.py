@@ -28,6 +28,6 @@ class OutboundCallHandler(BaseCallHandler):
     def handle_outbound_call(self):
         response = VoiceResponse()
         response.say(self.greeting)
-        gather = Gather(input='speech', action='/handle-outbound-response', timeout=3)
+        gather = Gather(input='speech', action='/handle-outbound-response', timeout=10)
         response.append(gather)
         return str(response)
