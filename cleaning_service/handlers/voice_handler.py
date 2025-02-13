@@ -2,7 +2,6 @@
 from elevenlabs.client import ElevenLabs
 import os
 import base64
-from twilio.twiml.voice_response import VoiceResponse
 
 class VoiceHandler:
     def __init__(self):
@@ -11,6 +10,8 @@ class VoiceHandler:
         
     def generate_audio_response(self, text):
         try:
+            print("Attempting to generate audio with text:", text)
+            
             # Generate audio using ElevenLabs
             audio_generator = self.client.text_to_speech.convert(
                 text=text,
@@ -22,37 +23,14 @@ class VoiceHandler:
             # Convert generator to bytes
             audio_content = b''.join(chunk for chunk in audio_generator)
             
-            # Convert audio to base64 for Twilio
-            audio_base64 = base64.b64encode(audio_content).decode('utf-8')
+            print(f"Successfully generated audio of size: {len(audio_content)} bytes")
             
-            # Create TwiML response with the audio
-            response = VoiceResponse()
+            # For debugging, save the audio file locally
+            with open("test_response.mp3", "wb") as f:
+                f.write(audio_content)
             
-            try:
-                response.play(f"data:audio/mp3;base64,{audio_base64}")
-            except Exception as e:
-                print(f"Error playing audio: {e}")
-                # Fallback to standard TTS if play fails
-                response.say(text)
-            
-            # Add gather for next input
-            gather = response.gather(
-                input='speech',
-                timeout=3
-            )
-            
-            return str(response)
+            return audio_content
             
         except Exception as e:
-            print(f"Error generating voice response: {e}")
-            # Fallback to default Twilio TTS
-            response = VoiceResponse()
-            response.say(text)
-            
-            # Add gather for next input
-            gather = response.gather(
-                input='speech',
-                timeout=3
-            )
-            
-            return str(response)
+            print(f"Error in generate_audio_response: {e}")
+            return None
