@@ -39,12 +39,12 @@ def handle_response(handler):
             ai_response = handler.handle_response(user_speech)
             response.say(ai_response)
             action = '/handle-inbound-response' if isinstance(handler, InboundCallHandler) else '/handle-outbound-response'
-            gather = Gather(input='speech', action=action, timeout=3)
+            gather = Gather(input='speech', action=action, timeout=10) # Increased from 3 to 10
             response.append(gather)
         else:
             response.say("I didn't catch that. Could you please repeat?")
             action = '/handle-inbound-response' if isinstance(handler, InboundCallHandler) else '/handle-outbound-response'
-            gather = Gather(input='speech', action=action, timeout=3)
+            gather = Gather(input='speech', action=action, timeout=10) # Increased from 3 to 10
             response.append(gather)
     except Exception as e:
         print(f"Error in handle_response: {e}")
