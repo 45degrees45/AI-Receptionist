@@ -1,21 +1,23 @@
 # handlers/voice_handler.py
-from elevenlabs.client import ElevenLabs
+from elevenlabs import generate, set_api_key
 import os
 import base64
 from twilio.twiml.voice_response import VoiceResponse
 
 class VoiceHandler:
     def __init__(self):
-        self.client = ElevenLabs(api_key=os.getenv('ELEVENLABS_API_KEY'))
-        self.voice_id = os.getenv('ELEVENLABS_VOICE_ID', 'Rachel')  # Default to Rachel voice
+        # Set the API key for ElevenLabs
+        set_api_key(os.getenv('ELEVENLABS_API_KEY'))
+        self.voice_id = os.getenv('ELEVENLABS_VOICE_ID', 'Rachel')
         
     def generate_audio_response(self, text):
         try:
-            # Initialize the voice session
-            voice = self.client.Voice(voice_id=self.voice_id)
-            
             # Generate audio using ElevenLabs
-            audio = voice.generate(text=text)
+            audio = generate(
+                text=text,
+                voice=self.voice_id,
+                model="eleven_monolingual_v1"
+            )
             
             # Convert audio to base64 for Twilio
             audio_base64 = base64.b64encode(audio).decode('utf-8')
