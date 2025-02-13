@@ -1,8 +1,11 @@
 # File 4: app.py
+
 from flask import Flask, request
+from twilio.twiml.voice_response import VoiceResponse, Gather
 from handlers.inbound_handler import InboundCallHandler
 from handlers.outbound_handler import OutboundCallHandler
 from dotenv import load_dotenv
+import traceback
 
 load_dotenv()
 
@@ -30,25 +33,35 @@ def handle_outbound_response():
 def handle_response(handler):
     response = VoiceResponse()
     try:
+        print("Starting response handling")
+        print("Request values:", request.values)
+        
         if 'RecordingUrl' in request.values:
+            print(f"Processing recording from URL: {request.values['RecordingUrl']}")
             user_speech = handler.transcribe_audio(request.values['RecordingUrl'])
         else:
             user_speech = request.values.get('SpeechResult', '')
+            print(f"Direct speech result: {user_speech}")
         
         if user_speech:
+            print("Processing user speech")
             ai_response = handler.handle_response(user_speech)
+            print(f"AI response: {ai_response}")
             response.say(ai_response)
             action = '/handle-inbound-response' if isinstance(handler, InboundCallHandler) else '/handle-outbound-response'
-            gather = Gather(input='speech', action=action, timeout=10) # Increased from 3 to 10
+            gather = Gather(input='speech', action=action, timeout=10)
             response.append(gather)
         else:
+            print("No speech detected")
             response.say("I didn't catch that. Could you please repeat?")
             action = '/handle-inbound-response' if isinstance(handler, InboundCallHandler) else '/handle-outbound-response'
-            gather = Gather(input='speech', action=action, timeout=10) # Increased from 3 to 10
+            gather = Gather(input='speech', action=action, timeout=10)
             response.append(gather)
     except Exception as e:
         print(f"Error in handle_response: {e}")
+        print("Full traceback:", traceback.format_exc())
         response.say("I apologize, but I'm having trouble processing your request at the moment.")
+        response.hangup()
     
     return str(response)
 
