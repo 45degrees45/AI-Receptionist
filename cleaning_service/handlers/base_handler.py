@@ -1,7 +1,9 @@
 # File 1: handlers/base_handler.py
+# handlers/base_handler.py
 from openai import OpenAI
 import requests
 import os
+from .voice_handler import VoiceHandler
 
 class BaseCallHandler:
     def __init__(self):
@@ -12,6 +14,7 @@ class BaseCallHandler:
             api_key=os.getenv('OPENAI_API_KEY'),
             base_url="https://api.openai.com/v1"
         )
+        self.voice_handler = VoiceHandler()
 
     def transcribe_audio(self, audio_url):
         try:
@@ -41,7 +44,9 @@ class BaseCallHandler:
             )
             ai_response = response.choices[0].message.content
             self.conversation_history.append({"role": "assistant", "content": ai_response})
-            return ai_response
+            
+            # Generate voice response using ElevenLabs
+            return self.voice_handler.generate_audio_response(ai_response)
         except Exception as e:
             print(f"Error handling response: {e}")
             return "I apologize, but I'm having trouble processing your request at the moment."
