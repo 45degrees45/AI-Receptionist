@@ -36,6 +36,8 @@ class BaseCallHandler:
 
     def handle_response(self, user_input):
         try:
+            print(f"Processing user input: {user_input}")
+            
             # Add user input to conversation history
             self.conversation_history.append({"role": "user", "content": user_input})
             
@@ -45,25 +47,21 @@ class BaseCallHandler:
                 messages=self.conversation_history
             )
             ai_response = response.choices[0].message.content
+            print(f"AI generated response: {ai_response}")
             
             # Add AI response to conversation history
             self.conversation_history.append({"role": "assistant", "content": ai_response})
             
-            # Create TwiML response directly
-            response = VoiceResponse()
-            response.say(ai_response)
+            # Generate audio response
+            audio_content = self.voice_handler.generate_audio_response(ai_response)
             
-            # Add gather for next user input
-            gather = response.gather(
-                input='speech',
-                action='/handle-inbound-response' if 'inbound' in str(self.__class__).lower() else '/handle-outbound-response',
-                timeout=3
-            )
-            
-            return str(response)
+            if audio_content:
+                print("Successfully generated audio response")
+                return ai_response  # For now, just return the text response
+            else:
+                print("Failed to generate audio response")
+                return "I apologize, but I'm having trouble processing your request at the moment."
+                
         except Exception as e:
-            print(f"Error handling response: {e}")
-            response = VoiceResponse()
-            response.say("I apologize, but I'm having trouble processing your request at the moment.")
-            response.hangup()
-            return str(response)
+            print(f"Error in handle_response: {e}")
+            return "I apologize, but I'm having trouble processing your request at the moment."
