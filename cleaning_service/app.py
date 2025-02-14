@@ -4,6 +4,7 @@ from flask import Flask, request
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from handlers.inbound_handler import InboundCallHandler
 from handlers.outbound_handler import OutboundCallHandler
+from handlers.aws_voice_handler import AWSVoiceHandler  # Add this import
 from dotenv import load_dotenv
 import traceback
 
@@ -87,10 +88,14 @@ def health_check():
 @app.route("/test-polly", methods=['GET'])
 def test_polly():
     try:
+        print("Testing AWS Polly integration...")
         handler = AWSVoiceHandler()
         result = handler.generate_audio_response("This is a test of AWS Polly integration.")
+        print("AWS Polly test completed")
         return result
     except Exception as e:
+        print(f"AWS Polly test error: {str(e)}")
+        traceback.print_exc()
         return str(e), 500
 
 if __name__ == "__main__":
