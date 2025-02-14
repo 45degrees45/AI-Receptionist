@@ -82,5 +82,16 @@ def health_check():
     """Health check endpoint for Render."""
     return {"status": "healthy"}, 200
 
+# Add this to app.py
+
+@app.route("/test-polly", methods=['GET'])
+def test_polly():
+    try:
+        handler = AWSVoiceHandler()
+        result = handler.generate_audio_response("This is a test of AWS Polly integration.")
+        return result
+    except Exception as e:
+        return str(e), 500
+
 if __name__ == "__main__":
     app.run(debug=True)
