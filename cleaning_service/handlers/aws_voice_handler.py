@@ -4,7 +4,9 @@ import os
 import base64
 from twilio.twiml.voice_response import VoiceResponse
 
-class AWSVoiceHandler:
+from .base_voice_handler import BaseVoiceHandler
+
+class AWSVoiceHandler(BaseVoiceHandler):
     def __init__(self):
         self.polly_client = boto3.client('polly',
             aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
@@ -15,6 +17,7 @@ class AWSVoiceHandler:
 
     def generate_audio_response(self, text):
         try:
+            print("AWS Polly: Attempting to generate speech...")
             # Generate speech using Amazon Polly
             response = self.polly_client.synthesize_speech(
                 Engine='neural',
