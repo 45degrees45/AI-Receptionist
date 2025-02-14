@@ -38,11 +38,17 @@ class AWSVoiceHandler(BaseVoiceHandler):
                 response = VoiceResponse()
                 response.play(f"data:audio/mp3;base64,{audio_base64}")
                 
+                                # Debug: Print success message
+                print("AWS Polly: Successfully generated audio response")
                 return str(response)
+            else:
+                print("AWS Polly: No AudioStream in response")
+                raise Exception("No AudioStream in Polly response")
             
         except Exception as e:
             print(f"Error generating voice response with AWS Polly: {e}")
-            # Fallback to default Twilio TTS
+            print(f"Full error details: {str(e)}")
+            print("Falling back to Twilio TTS...")
             response = VoiceResponse()
             response.say(text)
             return str(response)
