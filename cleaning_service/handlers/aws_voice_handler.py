@@ -1,30 +1,39 @@
 # handlers/aws_voice_handler.py
-# Version: 1.1.0 - Enhanced AWS Polly implementation
+# Version: 1.2.0 - Enhanced error handling and validation
 # Changes:
-# - Added comprehensive error handling
-# - Improved logging
-# - Added voice configuration options
+# - Added detailed error messages for common AWS issues
+# - Improved credential validation
+# - Added health check integration
 
 import boto3
 import os
 import base64
 import logging
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import (
+    BotoCoreError, 
+    ClientError,
+    CredentialRetrievalError,
+    InvalidRegionError
+)
 from twilio.twiml.voice_response import VoiceResponse
 from .base_voice_handler import BaseVoiceHandler
+from .aws_health_check import AWSHealthCheck
 
-# Configure logging
 logger = logging.getLogger(__name__)
+
+class AWSPollyError(Exception):
+    """Custom exception for AWS Polly errors"""
+    pass
 
 class AWSVoiceHandler(BaseVoiceHandler):
     def __init__(self):
-        # Validate AWS credentials
-        required_env_vars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION']
-        missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+        # Run initial health check
+        health_checker = AWSHealthCheck()
+        health_status = health_checker.check_credentials()
         
-        if missing_vars:
-            logger.error(f"Missing required AWS environment variables: {', '.join(missing_vars)}")
-            raise ValueError(f"Missing required AWS environment variables: {', '.join(missing_vars)}")
+        if health_status['status'] == 'error':
+            logger.error(f"AWS initialization error: {health_status['message']}")
+            raise AWSPollyError(health_status['message'])
 
         try:
             self.polly_client = boto3.client('polly',
@@ -35,7 +44,7 @@ class AWSVoiceHandler(BaseVoiceHandler):
             logger.info("AWS Polly client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize AWS Polly client: {e}")
-            raise
+            raise AWSPollyError(f"Failed to initialize AWS Polly client: {str(e)}")
 
         # Configure voice settings
         self.voice_id = os.getenv('AWS_POLLY_VOICE_ID', 'Ruth')
@@ -43,6 +52,28 @@ class AWSVoiceHandler(BaseVoiceHandler):
         self.output_format = 'mp3'
         
         logger.info(f"Voice handler configured with voice_id: {self.voice_id}, engine: {self.engine}")
+
+    def _handle_aws_error(self, error):
+        """Handle specific AWS errors with detailed messages"""
+        error_messages = {
+            'AccessDeniedException': 'AWS access denied. Please check IAM permissions for Polly service.',
+            'InvalidRegionException': 'Invalid AWS region specified.',
+            'InvalidSampleRateException': 'Invalid sample rate for audio output.',
+            'InvalidSsmlException': 'Invalid SSML in input text.',
+            'LanguageNotSupportedException': 'Specified language is not supported.',
+            'LexiconNotFoundException': 'Specified lexicon does not exist.',
+            'ServiceFailureException': 'AWS Polly service is currently unavailable.',
+            'TextLengthExceededException': 'Input text is too long.',
+            'ThrottlingException': 'AWS Polly request rate exceeded.',
+            'CredentialRetrievalError': 'Failed to retrieve AWS credentials.',
+            'EndpointConnectionError': 'Could not connect to AWS Polly endpoint.'
+        }
+        
+        error_code = getattr(error, 'response', {}).get('Error', {}).get('Code', error.__class__.__name__)
+        error_message = error_messages.get(error_code, f'Unexpected AWS error: {str(error)}')
+        
+        logger.error(f"AWS Polly error: {error_code} - {error_message}")
+        return error_message
 
     def generate_audio_response(self, text):
         """
@@ -81,26 +112,32 @@ class AWSVoiceHandler(BaseVoiceHandler):
                 return str(twiml_response)
             else:
                 logger.error("No AudioStream in Polly response")
-                return self._fallback_response(text)
+                return self._fallback_response(text, "No audio stream received from AWS Polly")
             
         except (BotoCoreError, ClientError) as aws_error:
-            logger.error(f"AWS Polly error: {aws_error}")
-            return self._fallback_response(text)
+            error_message = self._handle_aws_error(aws_error)
+            return self._fallback_response(text, error_message)
         except Exception as e:
             logger.error(f"Unexpected error in generate_audio_response: {e}")
-            return self._fallback_response(text)
+            return self._fallback_response(text, f"Unexpected error: {str(e)}")
 
-    def _fallback_response(self, text):
+    def _fallback_response(self, text, error_message=""):
         """
         Generate fallback TwiML response using Twilio's text-to-speech
         
         Args:
             text (str): Text to convert to speech
+            error_message (str): Error message for logging
             
         Returns:
             str: TwiML response string
         """
-        logger.info("Using fallback TTS response")
+        logger.warning(f"Using fallback TTS response. Reason: {error_message}")
         response = VoiceResponse()
         response.say(text)
         return str(response)
+
+    def check_health(self):
+        """Run health check for AWS Polly service"""
+        health_checker = AWSHealthCheck()
+        return health_checker.run_all_checks()
