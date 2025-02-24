@@ -98,5 +98,31 @@ def test_polly():
         traceback.print_exc()
         return str(e), 500
 
+# app.py
+# Version: 1.2.0 - Added AWS health check endpoint
+# Add this new endpoint to your existing app.py
+
+@app.route("/aws/health", methods=['GET'])
+
+def aws_health_check():
+    """Health check endpoint for AWS services"""
+    try:
+        # Create voice handler
+        voice_handler = AWSVoiceHandler()
+        
+        # Run health check
+        health_status = voice_handler.check_health()
+        
+        # Return detailed health status
+        return health_status, 200 if health_status['status'] == 'success' else 500
+        
+    except Exception as e:
+        logger.error(f"Error in AWS health check: {e}")
+        return {
+            'status': 'error',
+            'message': f'Failed to run AWS health check: {str(e)}',
+            'timestamp': logging.Formatter().converter()
+        }, 500
+
 if __name__ == "__main__":
     app.run(debug=True)
