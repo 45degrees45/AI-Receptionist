@@ -5,20 +5,15 @@
 # - Added debug logging configuration
 # - Improved error handling
 
+# Version: 1.1.1 - Added improved logging
+
 from openai import OpenAI
 import requests
 import os
 import logging
-from .aws_voice_handler import AWSVoiceHandler
-
-# Global debug flag
-DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+from config.voice_config import voice_config
 
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG if DEBUG else logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 class BaseCallHandler:
@@ -30,36 +25,34 @@ class BaseCallHandler:
             api_key=os.getenv('OPENAI_API_KEY'),
             base_url="https://api.openai.com/v1"
         )
-        self.voice_handler = AWSVoiceHandler()
-        logger.info("BaseCallHandler initialized with AWS Polly voice handler")
+        self.voice_handler = voice_config.get_voice_handler()
+        logger.info("BaseCallHandler initialized with voice handler: %s", 
+                   self.voice_handler.__class__.__name__)
 
     def transcribe_audio(self, audio_url):
         try:
-            logger.debug(f"Attempting to transcribe audio from URL: {audio_url}")
-            
-            # Download audio from Twilio URL
+            logger.debug("Downloading audio from URL: %s", audio_url)
             audio_response = requests.get(audio_url)
+            
             with open("temp_audio.wav", "wb") as f:
                 f.write(audio_response.content)
             
-            # Transcribe with Whisper
+            logger.debug("Transcribing audio with Whisper")
             with open("temp_audio.wav", "rb") as audio_file:
                 transcript = self.openai_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file
                 )
             os.remove("temp_audio.wav")
-            
-            logger.debug(f"Successfully transcribed audio: {transcript.text}")
+            logger.info("Audio transcription completed: %s", transcript.text)
             return transcript.text
-            
         except Exception as e:
-            logger.error(f"Error transcribing audio: {e}")
+            logger.error("Error transcribing audio: %s", str(e), exc_info=True)
             return ""
 
     def handle_response(self, user_input):
         try:
-            logger.debug(f"Processing user input: {user_input}")
+            logger.info("Processing user input: %s", user_input)
             
             # Add user input to conversation history
             self.conversation_history.append({"role": "user", "content": user_input})
@@ -70,21 +63,21 @@ class BaseCallHandler:
                 messages=self.conversation_history
             )
             ai_response = response.choices[0].message.content
-            logger.debug(f"AI generated response: {ai_response}")
+            logger.debug("AI generated response: %s", ai_response)
             
             # Add AI response to conversation history
             self.conversation_history.append({"role": "assistant", "content": ai_response})
             
-            # Generate audio response using AWS Polly
-            twiml_response = self.voice_handler.generate_audio_response(ai_response)
+            # Generate audio response
+            audio_content = self.voice_handler.generate_audio_response(ai_response)
             
-            if twiml_response:
-                logger.debug("Successfully generated AWS Polly audio response")
+            if audio_content:
+                logger.debug("Successfully generated audio response")
                 return ai_response
             else:
-                logger.error("Failed to generate AWS Polly audio response")
+                logger.error("Failed to generate audio response")
                 return "I apologize, but I'm having trouble processing your request at the moment."
                 
         except Exception as e:
-            logger.error(f"Error in handle_response: {e}")
+            logger.error("Error in handle_response: %s", str(e), exc_info=True)
             return "I apologize, but I'm having trouble processing your request at the moment."
